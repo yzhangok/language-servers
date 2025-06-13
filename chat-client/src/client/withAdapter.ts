@@ -121,6 +121,14 @@ export const withAdapter = (
             return defaultEventHandler.onContextSelected?.(contextItem, tabId, eventId) ?? false
         },
 
+        onOpenFileDialogClick(tabId, fileType, insertPosition) {
+            if (chatClientAdapter.isSupportedTab(tabId)) {
+                return customEventHandler.onOpenFileDialogClick?.(tabId, fileType, insertPosition) ?? false
+            }
+
+            return defaultEventHandler.onOpenFileDialogClick?.(tabId, fileType, insertPosition) ?? false
+        },
+
         onFormLinkClick(link, mouseEvent, eventId) {
             // Always delegate onFormLinkClick to adapter, if handled exists, since it's not tied to specific tabId
             if (customEventHandler.onFormLinkClick) {

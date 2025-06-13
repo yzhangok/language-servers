@@ -34,6 +34,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
+    OpenFileDialogParams,
     OpenTabResult,
     PromptInputOptionChangeParams,
     QuickActionParams,
@@ -96,6 +97,7 @@ export interface OutboundChatApi {
     stopChatResponse(tabId: string): void
     sendButtonClickEvent(params: ButtonClickParams): void
     onOpenSettings(settingKey: string): void
+    onOpenFileDialogClick(params: OpenFileDialogParams): void
 }
 
 export class Messager {
@@ -244,5 +246,9 @@ export class Messager {
 
     onOpenSettings = (settingKey: string): void => {
         this.chatApi.onOpenSettings(settingKey)
+    }
+
+    onOpenFileDialogClick = (params: OpenFileDialogParams): void => {
+        this.chatApi.onOpenFileDialogClick(params)
     }
 }

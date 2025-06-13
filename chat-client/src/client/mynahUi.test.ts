@@ -68,6 +68,7 @@ describe('MynahUI', () => {
             stopChatResponse: sinon.stub(),
             sendButtonClickEvent: sinon.stub(),
             onOpenSettings: sinon.stub(),
+            onOpenFileDialogClick: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)

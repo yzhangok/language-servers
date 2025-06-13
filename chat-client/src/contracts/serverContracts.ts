@@ -35,6 +35,8 @@ import {
     GetSerializedChatResult,
     PROMPT_INPUT_OPTION_CHANGE_METHOD,
     BUTTON_CLICK_REQUEST_METHOD,
+    OPEN_FILE_DIALOG_METHOD,
+    OpenFileDialogParams,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -61,6 +63,7 @@ export type ServerMessageCommand =
     | typeof GET_SERIALIZED_CHAT_REQUEST_METHOD
     | typeof PROMPT_INPUT_OPTION_CHANGE_METHOD
     | typeof BUTTON_CLICK_REQUEST_METHOD
+    | typeof OPEN_FILE_DIALOG_METHOD
 
 export interface ServerMessage {
     command: ServerMessageCommand
@@ -91,3 +94,4 @@ export type ServerMessageParams =
     | ConversationClickParams
     | TabBarActionParams
     | GetSerializedChatResult
+    | OpenFileDialogParams

@@ -27,6 +27,8 @@ import {
     LinkClickParams,
     ListConversationsResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
@@ -40,6 +42,7 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemButton,
+    MynahIcons,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -78,6 +81,7 @@ export interface InboundChatApi {
     conversationClicked(params: ConversationClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
+    addSelectedFilesToContext(params: OpenFileDialogParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -524,6 +528,14 @@ export const createMynahUi = (
         },
         onStopChatResponse: tabId => {
             messager.onStopChatResponse(tabId)
+        },
+        onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
+            const payload: OpenFileDialogParams = {
+                tabId,
+                fileType: fileType as 'image' | '',
+                insertPosition,
+            }
+            messager.onOpenFileDialogClick(payload)
         },
     }
 
@@ -1180,6 +1192,30 @@ ${params.message}`,
         })
     }
 
+    const addSelectedFilesToContext = (params: OpenFileDialogResult) => {
+        if (params.errorMessage) {
+            mynahUi.notify({
+                content: params.errorMessage,
+                type: NotificationType.ERROR,
+            })
+            return
+        }
+        const commands: QuickActionCommand[] = []
+        for (const filePath of params.filePaths) {
+            const fileName = filePath.split('/').pop() || filePath
+            if (params.fileType === 'image') {
+                commands.push({
+                    command: fileName,
+                    description: `Image ${fileName}`,
+                    route: [filePath],
+                    icon: MynahIcons.IMAGE,
+                })
+            }
+        }
+
+        mynahUi.appendContextCommands(params.tabId, commands, params.insertPosition)
+    }
+
     const chatHistoryList = new ChatHistoryList(mynahUi, messager)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
@@ -1248,6 +1284,7 @@ ${params.message}`,
         conversationClicked: conversationClicked,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
+        addSelectedFilesToContext: addSelectedFilesToContext,
     }
 
     return [mynahUi, api]

@@ -2,7 +2,7 @@
     "compilerOptions": {
         "target": "ES2018",
         "module": "nodenext",
-        "lib": ["es2016", "es2017.object", "es2017.string"],
+        "lib": ["es2016", "es2017.object", "es2017.string", "dom"],
         "declaration": true,
         "outDir": "./dist",
         "declarationDir": "./dist/types",

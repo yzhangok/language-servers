@@ -33,6 +33,8 @@ import {
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -145,6 +147,8 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
+import { ImageBlock, ImageFormat } from '@aws/codewhisperer-streaming-client'
+import { ContextCommand } from '@aws/language-server-runtimes/protocol'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -379,6 +383,61 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            // Check if this is a request to open file system for image selection
+            try {
+                // Create a file dialog that only allows image files
+                this.#log('Start open file system')
+
+                const fileTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp']
+                const filters = { 'Image Files': fileTypes.map(ext => `*.${ext}`) }
+
+                // Show the file dialog to the user
+                const result = await this.#features.lsp.window.showOpenDialog({
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    filters,
+                })
+
+                // If user selected a file, return it in the response
+                if (result.uris && result.uris.length > 0) {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: result.uris,
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                } else {
+                    // User canceled the dialog
+                    return {
+                        tabId: params.tabId,
+                        filePaths: [],
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                }
+            } catch (error) {
+                this.#log('Error opening file dialog:', error instanceof Error ? error.message : String(error))
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    errorMessage: 'Fail to open file dialog',
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                }
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            errorMessage: 'File type not supported',
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
+    }
+
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
         const newFilePath = getNewPromptFilePath(params.promptName)
         const newFileContent = ''
@@ -577,6 +636,50 @@ export class AgenticChatController implements ChatHandlers {
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+
+        // Handle image context if present
+        let imageBlocks: ImageBlock[] = []
+        if (params.context) {
+            for (const context of params.context as ContextCommand[]) {
+                if (
+                    context.icon !== undefined &&
+                    context.icon === 'image' &&
+                    context.route &&
+                    context.route.length > 0
+                ) {
+                    try {
+                        // sanitize the image path to remove  'file://' if it's a prefix
+                        const imagePath = context.route[0].startsWith('file://')
+                            ? context.route[0].substring(7)
+                            : context.route[0]
+                        // Read image file
+                        const fileContent = await this.#features.workspace.fs.readFile(imagePath, {
+                            encoding: 'binary',
+                        })
+                        const imageBuffer = Buffer.from(fileContent, 'binary')
+                        const imageBytes = new Uint8Array(imageBuffer)
+
+                        // Get image format from file extension
+                        const format = imagePath.split('.').pop()?.toLowerCase() || 'png'
+                        if (!['png', 'jpeg', 'gif', 'webp'].includes(format)) {
+                            this.#features.logging.warn(`Unsupported image format: ${format}`)
+                            continue
+                        }
+
+                        // Add image block
+                        imageBlocks.push({
+                            format: format as ImageFormat,
+                            source: {
+                                bytes: imageBytes,
+                            },
+                        })
+                    } catch (err) {
+                        this.#features.logging.error(`Failed to read image file: ${err}`)
+                    }
+                }
+            }
+        }
+
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
@@ -589,6 +692,11 @@ export class AgenticChatController implements ChatHandlers {
             additionalContext,
             session.modelId
         )
+
+        // Add images to the request input if any were found
+        if (imageBlocks.length > 0 && requestInput.conversationState?.currentMessage?.userInputMessage) {
+            requestInput.conversationState.currentMessage.userInputMessage.images = imageBlocks
+        }
 
         return requestInput
     }

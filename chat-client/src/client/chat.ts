@@ -32,6 +32,7 @@ import {
     CHAT_PROMPT_OPTION_ACKNOWLEDGED,
     STOP_CHAT_RESPONSE,
     OPEN_SETTINGS,
+    OPEN_FILE_DIALOG,
 } from '@aws/chat-client-ui-types'
 import {
     BUTTON_CLICK_REQUEST_METHOD,
@@ -83,6 +84,9 @@ import {
     TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
+    OpenFileDialogParams,
+    OPEN_FILE_DIALOG_METHOD,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes-types'
 import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
@@ -185,6 +189,9 @@ export const createChat = (
                 break
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
+                break
+            case OPEN_FILE_DIALOG_METHOD:
+                mynahApi.addSelectedFilesToContext(message.params as OpenFileDialogResult)
                 break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
@@ -402,6 +409,9 @@ export const createChat = (
         },
         onOpenSettings: (settingKey: string) => {
             sendMessageToClient({ command: OPEN_SETTINGS, params: { settingKey } })
+        },
+        onOpenFileDialogClick: (params: OpenFileDialogParams) => {
+            sendMessageToClient({ command: OPEN_FILE_DIALOG, params: params })
         },
     }
 

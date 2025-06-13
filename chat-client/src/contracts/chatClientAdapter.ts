@@ -38,6 +38,7 @@ export interface ChatEventHandler
         | 'onPromptInputOptionChange'
         | 'onPromptInputButtonClick'
         | 'onMessageDismiss'
+        | 'onOpenFileDialogClick'
     > {}
 
 /**
