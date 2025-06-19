@@ -753,8 +753,8 @@ export class AgenticChatController implements ChatHandlers {
         if (params.context) {
             for (const context of params.context as ContextCommand[]) {
                 if (
-                    context.icon !== undefined &&
-                    context.icon === 'image' &&
+                    context.label !== undefined &&
+                    context.label === 'image' &&
                     context.route &&
                     context.route.length > 0
                 ) {

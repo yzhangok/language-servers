@@ -511,6 +511,15 @@ export const createMynahUi = (
             }
         },
         onContextSelected: (contextItem, tabId) => {
+            if (contextItem.command === 'image') {
+                const payload: OpenFileDialogParams = {
+                    tabId,
+                    fileType: contextItem.command as 'image' | '',
+                    insertPosition: 0,
+                }
+                messager.onOpenFileDialogClick(payload)
+                return false
+            }
             if (contextItem.id === ContextPrompt.CreateItemId) {
                 mynahUi.showCustomForm(
                     tabId,
@@ -675,7 +684,7 @@ export const createMynahUi = (
                 )
 
                 // Add valid files to context commands
-                mynahUi.appendContextCommands(tabId, commands, insertPosition)
+                mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
             }
             const uniqueErrors = [...new Set(errors)]
             for (const error of uniqueErrors) {
@@ -1428,7 +1437,7 @@ ${params.message}`,
             }
         }
 
-        mynahUi.appendContextCommands(params.tabId, commands, params.insertPosition)
+        mynahUi.addCustomContextToPrompt(params.tabId, commands, params.insertPosition)
     }
 
     const chatHistoryList = new ChatHistoryList(mynahUi, messager)
