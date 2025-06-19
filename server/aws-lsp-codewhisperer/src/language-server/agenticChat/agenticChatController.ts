@@ -661,13 +661,17 @@ export class AgenticChatController implements ChatHandlers {
                 triggerContext.documentReference =
                     this.#additionalContextProvider.getFileListFromContext(additionalContext)
             }
+
+            const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(params.context)
+
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
                 session,
                 triggerContext,
                 additionalContext,
-                chatResultStream
+                chatResultStream,
+                customContext
             )
 
             // Generate a unique ID for this prompt
@@ -743,7 +747,8 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        customContext: ImageBlock[]
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
         const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
@@ -801,13 +806,9 @@ export class AgenticChatController implements ChatHandlers {
             [],
             this.#getTools(session),
             additionalContext,
-            session.modelId
+            session.modelId,
+            customContext
         )
-
-        // Add images to the request input if any were found
-        if (imageBlocks.length > 0 && requestInput.conversationState?.currentMessage?.userInputMessage) {
-            requestInput.conversationState.currentMessage.userInputMessage.images = imageBlocks
-        }
 
         return requestInput
     }
@@ -3558,5 +3559,54 @@ export class AgenticChatController implements ChatHandlers {
 
     #debug(...messages: string[]) {
         this.#features.logging.debug(messages.join(' '))
+    }
+
+    /**
+     * Extracts image blocks from a context array, reading image files and returning them as ImageBlock objects.
+     * @param contextArr The context array to extract image blocks from.
+     */
+    private async getImageBlocksFromContext(contextArr?: ContextCommand[]): Promise<ImageBlock[]> {
+        const imageBlocks: ImageBlock[] = []
+        if (contextArr) {
+            for (const context of contextArr) {
+                if (
+                    context.label !== undefined &&
+                    context.label === 'image' &&
+                    context.route &&
+                    context.route.length > 0
+                ) {
+                    try {
+                        // sanitize the image path to remove  'file://' if it's a prefix
+                        const imagePath = context.route[0].startsWith('file://')
+                            ? context.route[0].substring(7)
+                            : context.route[0]
+                        // Read image file
+                        const fileContent = await this.#features.workspace.fs.readFile(imagePath, {
+                            encoding: 'binary',
+                        })
+                        const imageBuffer = Buffer.from(fileContent, 'binary')
+                        const imageBytes = new Uint8Array(imageBuffer)
+
+                        // Get image format from file extension
+                        const format = imagePath.split('.').pop()?.toLowerCase() || 'png'
+                        if (!['png', 'jpeg', 'gif', 'webp'].includes(format)) {
+                            this.#features.logging.warn(`Unsupported image format: ${format}`)
+                            continue
+                        }
+
+                        // Add image block
+                        imageBlocks.push({
+                            format: format as ImageFormat,
+                            source: {
+                                bytes: imageBytes,
+                            },
+                        })
+                    } catch (err) {
+                        this.#features.logging.error(`Failed to read image file: ${err}`)
+                    }
+                }
+            }
+        }
+        return imageBlocks
     }
 }

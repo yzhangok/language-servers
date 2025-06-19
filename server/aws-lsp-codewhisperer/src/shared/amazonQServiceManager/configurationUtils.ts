@@ -26,40 +26,9 @@ export function getAmazonQRegionAndEndpoint(
     logging: Logging,
     region?: string
 ): AmazonQRegionAndEndpoint {
-    let amazonQRegion: string
-    let amazonQEndpoint: string | undefined
-
-    if (region) {
-        logging.log(`Selecting region (found: ${region}) provided by caller`)
-        amazonQRegion = region
-        amazonQEndpoint = AWS_Q_ENDPOINTS.get(amazonQRegion)
-    } else {
-        const runtimeRegion = runtime.getConfiguration(AWS_Q_REGION_ENV_VAR)
-
-        if (runtimeRegion) {
-            logging.log(`Selecting region (found: ${runtimeRegion}) provided by runtime`)
-            amazonQRegion = runtimeRegion
-            amazonQEndpoint = runtime.getConfiguration(AWS_Q_ENDPOINT_URL_ENV_VAR) ?? AWS_Q_ENDPOINTS.get(amazonQRegion)
-        } else {
-            logging.log(
-                `Region not provided by caller or runtime, falling back to default region (${DEFAULT_AWS_Q_REGION}) and endpoint`
-            )
-            amazonQRegion = DEFAULT_AWS_Q_REGION
-            amazonQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
-        }
-    }
-
-    if (!amazonQEndpoint) {
-        logging.log(
-            `Unable to determine endpoint (found: ${amazonQEndpoint}) for region: ${amazonQRegion}, falling back to default region (${DEFAULT_AWS_Q_REGION}) and endpoint`
-        )
-        amazonQRegion = DEFAULT_AWS_Q_REGION
-        amazonQEndpoint = DEFAULT_AWS_Q_ENDPOINT_URL
-    }
-
     return {
-        region: amazonQRegion,
-        endpoint: amazonQEndpoint,
+        region: DEFAULT_AWS_Q_REGION,
+        endpoint: DEFAULT_AWS_Q_ENDPOINT_URL,
     }
 }
 

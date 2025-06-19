@@ -48,7 +48,7 @@ import {
     QuickActionCommand,
     ChatItemButton,
     MynahIcons,
-    ImageQuickActionCommand,
+    CustomQuickActionCommand,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -221,17 +221,18 @@ const verifyDroppedFiles = async (files: FileList): Promise<{ validFiles: File[]
     const errors: string[] = []
     for (let i = 0; i < files.length; i++) {
         const file = files[i]
+        const fileName = file.name || 'Unknown file'
         const extension = file.name.split('.').pop()?.toLowerCase()
 
         if (!extension || !supportedExtensions.includes(extension)) {
-            errors.push(`File must be an image in JPEG, PNG, GIF, or WebP format.`)
+            errors.push(`${fileName}: File must be an image in JPEG, PNG, GIF, or WebP format.`)
             continue
         }
         if (extension && supportedExtensions.includes(extension)) {
             // Check file size (3.75MB = 3.75 * 1024 * 1024 bytes)
             const maxSizeBytes = 3.75 * 1024 * 1024
             if (file.size > maxSizeBytes) {
-                errors.push(`Image must be no more than 3.75MB in size.`)
+                errors.push(`${fileName}: Image must be no more than 3.75MB in size.`)
                 continue // Skip files that are too large
             }
 
@@ -239,12 +240,11 @@ const verifyDroppedFiles = async (files: FileList): Promise<{ validFiles: File[]
             try {
                 const dimensions = await getImageDimensions(file)
                 if (dimensions.width > 8000 || dimensions.height > 8000) {
-                    errors.push(`Image must be no more than 8,000px in width or height.`)
+                    errors.push(`${fileName}: Image must be no more than 8,000px in width or height.`)
                     continue // Skip images that are too large
                 }
             } catch (error) {
                 // If we can't read dimensions, skip the file
-                errors.push(`Failed to read image dimensions.`)
                 continue
             }
 
@@ -512,6 +512,14 @@ export const createMynahUi = (
         },
         onContextSelected: (contextItem, tabId) => {
             if (contextItem.command === 'image') {
+                const imageContext = getImageContextCount(tabId)
+                if (imageContext >= 20) {
+                    mynahUi.notify({
+                        content: 'A maximum of 20 images can be added to a single message.',
+                        type: NotificationType.WARNING,
+                    })
+                    return false
+                }
                 const payload: OpenFileDialogParams = {
                     tabId,
                     fileType: contextItem.command as 'image' | '',
@@ -645,6 +653,14 @@ export const createMynahUi = (
             messager.onStopChatResponse(tabId)
         },
         onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
+            const imageContext = getImageContextCount(tabId)
+            if (imageContext >= 20) {
+                mynahUi.notify({
+                    content: 'A maximum of 20 images can be added to a single message.',
+                    type: NotificationType.WARNING,
+                })
+                return
+            }
             const payload: OpenFileDialogParams = {
                 tabId,
                 fileType: fileType as 'image' | '',
@@ -653,11 +669,29 @@ export const createMynahUi = (
             messager.onOpenFileDialogClick(payload)
         },
         onFilesDropped: async (tabId: string, files: FileList, insertPosition: number) => {
+            const imageContextCount = getImageContextCount(tabId)
+            if (imageContextCount >= 20) {
+                mynahUi.notify({
+                    content: 'A maximum of 20 images can be added to a single message.',
+                    type: NotificationType.WARNING,
+                })
+                return
+            }
             // Verify dropped files and add valid ones to context
             const { validFiles, errors } = await verifyDroppedFiles(files)
             if (validFiles.length > 0) {
-                const commands: ImageQuickActionCommand[] = await Promise.all(
-                    validFiles.map(async (file: File) => {
+                // Calculate how many files we can actually add
+                const availableSlots = 20 - imageContextCount
+                const filesToAdd = validFiles.slice(0, availableSlots)
+                const filesExceeded = validFiles.length - availableSlots
+
+                // Add error message if we exceed the limit
+                if (filesExceeded > 0) {
+                    errors.push(`A maximum of 20 images can be added to a single message.`)
+                }
+
+                const commands: CustomQuickActionCommand[] = await Promise.all(
+                    filesToAdd.map(async (file: File) => {
                         const fileName = file.name || 'Unknown file'
                         const filePath = file.name || ''
 
@@ -675,8 +709,9 @@ export const createMynahUi = (
 
                         return {
                             command: fileName,
-                            description: fileName,
+                            description: filePath,
                             route: [filePath],
+                            label: 'image',
                             icon: icon,
                             content: bytes,
                         }
@@ -802,6 +837,20 @@ export const createMynahUi = (
                 ),
             },
         }
+    }
+
+    const getImageContextCount = (tabId: string) => {
+        const imageContextInPrompt =
+            mynahUi
+                .getTabData(tabId)
+                ?.getStore()
+                ?.customContextCommand?.filter(cm => cm.label === 'image').length || 0
+        const imageContextInPin =
+            mynahUi
+                .getTabData(tabId)
+                ?.getStore()
+                ?.promptTopBarContextItems?.filter(cm => cm.label === 'image').length || 0
+        return imageContextInPrompt + imageContextInPin
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
@@ -1430,7 +1479,8 @@ ${params.message}`,
             if (params.fileType === 'image') {
                 commands.push({
                     command: fileName,
-                    description: `Image ${fileName}`,
+                    description: filePath,
+                    label: 'image',
                     route: [filePath],
                     icon: MynahIcons.IMAGE,
                 })
